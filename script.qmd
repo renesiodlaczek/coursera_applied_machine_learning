@@ -4,23 +4,129 @@ format: html
 editor: visual
 ---
 
-## Quarto
+## Summary
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+In this report a prediction study is presented using data from accelerometers. The goal is to find a machine learning algorithm that assesses how well a certain exercise is carried out. To generate the underlying data six participants performed barbell lifts correctly and incorrectly in five different ways. They carried the sensors on their belt, forearm, arm, and dumbell. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
 
-## Running Code
+In the following sections it is described how to get the data, clean it, perform a principle components prepossessing and train a random forest algorithm. Afterwards the out of sample error is estimated and finally the algorithm is used to predict 20 new cases as part of the Coursera assignment.
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+## Getting and cleaning the data
+
+The data is downloaded via the following links from cloudfront. The first link points to the training data set and the second to a data set that contains the new 20 test cases for the final prediction.
+
+Afterwards unnecessary columns are removed from the training data set. Firstly administrational columns, that contain an index or times, are dropped. Also user names are dropped since the prediction shall be independent of individuals and shall only rely on the measurement data. Furthermore measurement columns are dropped that obviously do not contain valuable information. Those are columns with a NA-proportion bigger than 90% and columns that in itself have almost zero variance. Subsequently the same steps are performed on the 20 final test cases.
+
+Finally the dependent variable "classe" is shown that contains the classes for the different ecercise manners.
 
 ```{r}
-1 + 1
+library(caret)
+train_raw <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+test_final_raw <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+
+# Drop columns that only contain administrational information
+train <- train_raw[, -c(1:7)]
+
+# Drop columns with large NA-proportion
+na_cols <- colMeans(is.na(train)) > 0.9
+train <- train[, !na_cols]
+
+# Drop columns with near zero variance
+zero_var_cols <- nearZeroVar(train)
+train <- train[, -zero_var_cols]
+
+# Apply same steps to the final test set
+test_final <- test_final_raw[, -c(1:7)]
+test_final <- test_final[, !na_cols]
+test_final <- test_final[, -zero_var_cols]
+test_final <- test_final[, -ncol(test_final)] # remove problem_id column
+
+# Convert the dependent variable into a factor variable
+classe <- factor(train_raw$classe)
+table(classe)
+
 ```
 
-You can add options to executable code like this
+## Preprocessing
+
+Even after the deletion of the columns in the previous section the data set still contains a large number of columns.
 
 ```{r}
-#| echo: false
-2 * 2
+# Show number of rows and columns
+dim(train)
+
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+On the one hand this suggests that all those columns still contain redundant information, on the other hand a large number of columns significantly slows down the computation to train the algorithm. Therefore a principal components analysis (PCA) preprocessing is carried out that tries to express the original information with fewer dimensions (columns). In this case 25 new pca columns (principal components) are created. The same transformation is done for the final test set.
+
+```{r}
+# Extract only predictors
+train_predictors <- train[, -ncol(train)]
+
+# Apply PCA to determine which number of components explain a large portion of the overall variance
+preProcess(train_predictors, method = "pca")
+
+# Apply PCA with specified number of components
+pca_values <- preProcess(train_predictors, method = "pca", pcaComp = 25)
+train_predictors <- predict(pca_values, train_predictors)
+train <- cbind(classe, train_predictors)
+
+# Apply same pca-preprocessing to the final test set
+test_final <- predict(pca_values, test_final)
+
+```
+
+## Training
+
+In this section a random forest algorithm is trained. Before the training is done the training data is split into a training set and a validation set. The validation set is needed to assess the performance of the algorithm on unseen data. For the training parallel processing is used to make use of all computer cores.
+
+During training 5-fold cross validation is used to avoid overfitting. This means that the training data is split into five folds and on each iteration four folds are used for parameter estimation and one fold is used for validating the performance of this iteration.
+
+```{r}
+# Create training and validation set
+set.seed(123)
+inTraining <- createDataPartition(train$classe, p = 0.75, list = FALSE)
+
+training <- train[inTraining, ]
+testing <- train[-inTraining, ]
+
+y <- training$classe # to make caret faster
+x <- subset(training, select = -classe) # to make caret faster
+
+```
+
+```{r}
+#| eval: false
+
+library(parallel)
+library(doParallel)
+
+# Initialize algorithm with parallel processing
+cluster <- makeCluster(detectCores() - 1) # leave 1 core for OS
+registerDoParallel(cluster)
+
+fitControl <- trainControl(method = "cv", number = 5, allowParallel = TRUE)
+
+fit <- train(x, y, method = "rf", trControl = fitControl)
+
+stopCluster(cluster)
+registerDoSEQ()
+
+# Save fitted model
+saveRDS(fit, file = "fit")
+
+```
+
+## Testing
+
+```{r}
+# Read fitted model
+fit <- readRDS("fit")
+
+# Out of sample error estimation
+test_prediction <- predict(fit, testing)
+confusionMatrix(test_prediction, testing$classe)
+
+# Final prediction
+final_prediction <- predict(fit, test_final)
+
+```
