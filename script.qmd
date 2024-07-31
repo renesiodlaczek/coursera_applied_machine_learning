@@ -25,20 +25,24 @@ test_final_raw <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/
 
 # Drop columns that only contain administrational information
 train <- train_raw[, -c(1:7)]
+names(train_raw[, c(1:7)])
 
 # Drop columns with large NA-proportion
 na_cols <- colMeans(is.na(train)) > 0.9
 train <- train[, !na_cols]
+names(train_raw[, na_cols])
 
 # Drop columns with near zero variance
+zero_var_cols_names <- nearZeroVar(train, names = TRUE)
 zero_var_cols <- nearZeroVar(train)
 train <- train[, -zero_var_cols]
+zero_var_cols_names
 
 # Apply same steps to the final test set
 test_final <- test_final_raw[, -c(1:7)]
 test_final <- test_final[, !na_cols]
 test_final <- test_final[, -zero_var_cols]
-test_final <- test_final[, -ncol(test_final)] # remove problem_id column
+test_final <- test_final[, -ncol(test_final)] # remove additional problem_id column
 
 # Convert the dependent variable into a factor variable
 classe <- factor(train_raw$classe)
@@ -77,7 +81,7 @@ test_final <- predict(pca_values, test_final)
 
 ## Training
 
-In this section a random forest algorithm is trained. Before the training is done the training data is split into a training set and a validation set. The validation set is needed to assess the performance of the algorithm on unseen data. For the training parallel processing is used to make use of all computer cores.
+In this section a random forest algorithm is trained. Before the training is done the training data is split into a training set and a validation set. The validation set is needed to assess the performance of the algorithm on unseen data in the following chapter. For the training parallel processing is used to make use of all computer cores.
 
 During training 5-fold cross validation is used to avoid overfitting. This means that the training data is split into five folds and on each iteration four folds are used for parameter estimation and one fold is used for validating the performance of this iteration.
 
@@ -117,6 +121,8 @@ saveRDS(fit, file = "fit")
 ```
 
 ## Testing
+
+In the last section the fitted model is used on the validation set to assess the out of sample error, which is the performance of the algorithm on unseen data. Since the accuracy is above 99% the fitted model is used to predict the final 20 cases which results are used in the Coursera assignment.
 
 ```{r}
 # Read fitted model
