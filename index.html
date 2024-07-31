@@ -244,7 +244,7 @@ PCA needed 25 components to capture 95 percent of the variance</code></pre>
 </section>
 <section id="training" class="level2">
 <h2 class="anchored" data-anchor-id="training">Training</h2>
-<p>In this section a random forest algorithm is trained. Before the training is done the training data is split into a training set and a validation set. The validation set is needed to assess the performance of the algorithm on unseen data in the following chapter. For the training parallel processing is used to make use of all computer cores.</p>
+<p>In this section a random forest algorithm is trained. Before the training is done the training data is split into a training set and a validation set. The validation set is needed to assess the performance of the algorithm on unseen data in the following chapter. For the training parallel processing is used to make use of all cpu cores. </p>
 <p>During training 5-fold cross validation is used to avoid overfitting. This means that the training data is split into five folds and on each iteration four folds are used for parameter estimation and one fold is used for validating the performance of this iteration.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create training and validation set</span></span>
